@@ -2,18 +2,12 @@ module Main exposing (..)
 
 import Html exposing (..)
 import Html.Attributes exposing (href, class, style)
-import Round as Math exposing (..)
 import Material
 import Material.Scheme as Scheme
 import Material.Color as Color
 import Material.Button as Button
 import Material.Options as Options exposing (css)
 import Material.Card as Card
-
-
-white : Options.Property c m
-white =
-    Color.text Color.white
 
 
 main : Program Never Model Msg
