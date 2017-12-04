@@ -118,7 +118,7 @@ card model =
                         [ Color.background Color.primary
                         , Color.text Color.white
                         ]
-                        [ text "Pi" ]
+                        [ text "π" ]
                     , Chip.content []
                         [ text <| current model.position ++ "?" ]
                     ]
