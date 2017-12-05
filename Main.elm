@@ -1,5 +1,6 @@
 module Main exposing (..)
 
+import Random exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (href, class, style)
 import Material
@@ -25,6 +26,13 @@ type alias Model =
     { mdl : Material.Model
     , position : Int
     , level : Level
+    , elements : List Element
+    }
+
+
+type alias Element =
+    { value : Int
+    , action : Msg
     }
 
 
@@ -35,14 +43,17 @@ type Level
 
 
 type Msg
-    = NoOp
+    = Mdl (Material.Msg Msg)
     | SliderMsg Int Float
-    | Mdl (Material.Msg Msg)
+    | GenerateNextPuzzleMsg Level
+    | AddElementMsg Int
+    | CorrectMsg
+    | WrongMsg
 
 
 model : ( Model, Cmd Msg )
 model =
-    ( Model Material.model 60 Easy, Cmd.none )
+    ( Model Material.model 4 Easy [ Element 1 CorrectMsg, Element 2 WrongMsg ], Cmd.none )
 
 
 pi_ : String
@@ -66,16 +77,34 @@ update msg model =
         Mdl msg_ ->
             Material.update Mdl msg_ model
 
-        NoOp ->
+        SliderMsg idx value ->
+            update (GenerateNextPuzzleMsg <| mapFloatToLevel value) model
+
+        GenerateNextPuzzleMsg level ->
+            ( { model | elements = [], level = level }
+            , Cmd.batch
+                [ Random.generate AddElementMsg <| generateValue level
+                , Random.generate AddElementMsg <| generateValue level
+                , Random.generate AddElementMsg <| generateValue level
+                , Random.generate AddElementMsg <| generateValue level
+                ]
+            )
+
+        AddElementMsg value ->
+            ( { model | elements = (Element value WrongMsg) :: model.elements }
+            , Cmd.none
+            )
+
+        CorrectMsg ->
             ( model, Cmd.none )
 
-        SliderMsg idx value ->
-            ( { model | level = mapIntToLevel value }, Cmd.none )
+        WrongMsg ->
+            ( model, Cmd.none )
 
 
-mapIntToLevel : Float -> Level
-mapIntToLevel value =
-    if (value == -1) then
+mapFloatToLevel : Float -> Level
+mapFloatToLevel value =
+    if (value == -2) then
         Easy
     else if (value == 0) then
         Medium
@@ -87,13 +116,13 @@ mapLevelToFloat : Level -> Float
 mapLevelToFloat level =
     case level of
         Easy ->
-            -1
+            -2
 
         Medium ->
             0
 
         Hard ->
-            1
+            2
 
 
 view : Model -> Html Msg
@@ -134,9 +163,9 @@ card model =
                 [ Slider.view
                     [ Slider.onChange (SliderMsg 0)
                     , Slider.value <| mapLevelToFloat model.level
-                    , Slider.max 1
-                    , Slider.min -1
-                    , Slider.step 1
+                    , Slider.max 2
+                    , Slider.min -2
+                    , Slider.step 2
                     ]
                 ]
             ]
@@ -147,23 +176,35 @@ body : Model -> Html Msg
 body model =
     div
         [ style [ ( "text-align", "center" ) ] ]
-        [ button 0 "1" Color.BlueGrey model
-        , button 1 "2" Color.BlueGrey model
-        , button 2 "3" Color.BlueGrey model
-        , button 3 "5" Color.BlueGrey model
-        ]
+    <|
+        List.map
+            (\v -> button v model.mdl)
+            model.elements
 
 
-button : Int -> String -> Color.Hue -> Model -> Html Msg
-button id_ value color_ model =
+button : Element -> Material.Model -> Html Msg
+button element mdl =
     Button.render Mdl
-        [ id_ ]
-        model.mdl
-        [ Options.onClick NoOp
-        , css "margin" "5px"
-        , Color.background (Color.color color_ Color.S500)
+        [ element.value ]
+        mdl
+        [ Options.onClick <| element.action
         , Button.raised
         , Button.colored
         , Button.ripple
+        , Color.background (Color.color Color.BlueGrey Color.S500)
+        , css "margin" "5px"
         ]
-        [ text value ]
+        [ text <| toString element.value ]
+
+
+generateValue : Level -> Generator Int
+generateValue level =
+    case level of
+        Easy ->
+            Random.int 0 9
+
+        Medium ->
+            Random.int 10 99
+
+        Hard ->
+            Random.int 100 999
