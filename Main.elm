@@ -11,6 +11,7 @@ import Material.Options as Options exposing (css)
 import Material.Card as Card
 import Material.Chip as Chip
 import Material.Slider as Slider
+import Material.Toggles as Toggles
 
 
 main : Program Never Model Msg
@@ -47,6 +48,7 @@ type Level
 type Msg
     = Mdl (Material.Msg Msg)
     | SliderMsg Int Float
+    | ChangeLevelMsg Level
     | GenerateNextPuzzleMsg Level
     | AddElementMsg Int
     | CorrectMsg
@@ -95,6 +97,9 @@ update msg model =
         SliderMsg idx value ->
             update (GenerateNextPuzzleMsg <| mapFloatToLevel value) model
 
+        ChangeLevelMsg level ->
+            update (GenerateNextPuzzleMsg level) model
+
         GenerateNextPuzzleMsg level ->
             ( { model | elements = [], level = level }
             , Cmd.batch
@@ -134,11 +139,14 @@ update msg model =
                 )
 
         CorrectMsg ->
-            update (GenerateNextPuzzleMsg model.level)
-                { model
-                    | correct = model.correct + 1
-                    , position = model.position + mapLevelToInt model.level
-                }
+            if (isSolved model.position) then
+                ( model, Cmd.none )
+            else
+                update (GenerateNextPuzzleMsg model.level)
+                    { model
+                        | correct = model.correct + 1
+                        , position = model.position + mapLevelToInt model.level
+                    }
 
         WrongMsg ->
             ( { model | wrong = model.wrong + 1 }, Cmd.none )
@@ -194,29 +202,85 @@ card model =
                         ]
                         [ text "π" ]
                     , Chip.content []
-                        [ text <| current model.position ++ "?" ]
+                        [ text <|
+                            if (isSolved model.position) then
+                                current model.position
+                            else
+                                current model.position ++ "?"
+                        ]
                     ]
                 ]
             ]
         , Card.text [ css "text-align" "center" ]
-            [ div [] [ text <| "Correct: " ++ toString model.correct ++ " Wrong: " ++ toString model.wrong ]
+            [ div []
+                [ text "One number is sum of two other, left number is next digit in Pi"
+                ]
+            , div []
+                [ text <| "Correct: " ++ toString model.correct ++ " Wrong: " ++ toString model.wrong
+                ]
             ]
         , Card.text [] [ body model ]
         , Card.actions
             [ Card.border
-            , css "word-wrap" "break-word"
             ]
-            [ div [ style [ ( "float", "right" ), ( "margin-right", "20px" ) ] ] [ text <| toString model.level ]
-            , div []
-                [ Slider.view
-                    [ Slider.onChange (SliderMsg 0)
-                    , Slider.value <| toFloat <| mapLevelToInt model.level
-                    , Slider.max 3
-                    , Slider.min 1
-                    , Slider.step 1
-                    ]
-                ]
+            [ footerToggles model
             ]
+        ]
+
+
+isSolved : Int -> Bool
+isSolved value =
+    value > 60
+
+
+footerSlider : Model -> Html Msg
+footerSlider model =
+    div
+        []
+        [ div [ style [ ( "float", "right" ), ( "margin-right", "20px" ) ] ] [ text <| toString model.level ]
+        , Slider.view
+            [ Slider.onChange (SliderMsg 0)
+            , Slider.value <| toFloat <| mapLevelToInt model.level
+            , Slider.max 3
+            , Slider.min 1
+            , Slider.step 1
+            ]
+        ]
+
+
+footerToggles : Model -> Html Msg
+footerToggles model =
+    div
+        [ style [ ( "text-align", "center" ) ] ]
+        [ Toggles.radio Mdl
+            [ 0 ]
+            model.mdl
+            [ Toggles.value <| model.level == Easy
+            , Toggles.group "LevelRadioGroup"
+            , Toggles.ripple
+            , Options.onToggle <| ChangeLevelMsg Easy
+            , css "margin-right" "10px"
+            ]
+            [ text "Easy" ]
+        , Toggles.radio Mdl
+            [ 1 ]
+            model.mdl
+            [ Toggles.value <| model.level == Medium
+            , Toggles.group "LevelRadioGroup"
+            , Toggles.ripple
+            , Options.onToggle <| ChangeLevelMsg Medium
+            , css "margin-right" "10px"
+            ]
+            [ text "Medium" ]
+        , Toggles.radio Mdl
+            [ 2 ]
+            model.mdl
+            [ Toggles.value <| model.level == Hard
+            , Toggles.group "LevelRadioGroup"
+            , Toggles.ripple
+            , Options.onToggle <| ChangeLevelMsg Hard
+            ]
+            [ text "Hard" ]
         ]
 
 
