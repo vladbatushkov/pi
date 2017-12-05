@@ -24,6 +24,8 @@ type alias Mdl =
 
 type alias Model =
     { mdl : Material.Model
+    , correct : Int
+    , wrong : Int
     , position : Int
     , level : Level
     , elements : List Element
@@ -49,11 +51,12 @@ type Msg
     | AddElementMsg Int
     | CorrectMsg
     | WrongMsg
+    | NoOp
 
 
 model : ( Model, Cmd Msg )
 model =
-    ( Model Material.model 4 Easy [ Element 1 CorrectMsg, Element 2 WrongMsg ], Cmd.none )
+    update (GenerateNextPuzzleMsg Easy) (Model Material.model 0 0 4 Easy [])
 
 
 pi_ : String
@@ -66,9 +69,21 @@ current position =
     String.left position pi_
 
 
-next : Int -> String
-next position =
-    String.right 1 <| current (position + 1)
+next : Int -> Level -> Int
+next position level =
+    let
+        step =
+            mapLevelToInt level
+
+        str =
+            String.toInt <| String.right step <| current (position + step)
+    in
+        case str of
+            Ok a ->
+                a
+
+            Err a ->
+                0
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -85,44 +100,74 @@ update msg model =
             , Cmd.batch
                 [ Random.generate AddElementMsg <| generateValue level
                 , Random.generate AddElementMsg <| generateValue level
-                , Random.generate AddElementMsg <| generateValue level
-                , Random.generate AddElementMsg <| generateValue level
                 ]
             )
 
         AddElementMsg value ->
-            ( { model | elements = (Element value WrongMsg) :: model.elements }
-            , Cmd.none
-            )
+            if
+                (List.any (\a -> a.value == value) model.elements
+                    || (value == next model.position model.level)
+                )
+            then
+                ( model, Random.generate AddElementMsg <| generateValue model.level )
+            else if (List.length model.elements == 1) then
+                let
+                    elements =
+                        Element (next model.position model.level) CorrectMsg
+                            :: (Element value WrongMsg)
+                            :: model.elements
+
+                    resultValue =
+                        List.filter (\a -> a.action == WrongMsg) elements
+                            |> List.map (\a -> a.value)
+                            |> List.sum
+                in
+                    if (List.any (\a -> a.value == resultValue) model.elements) then
+                        ( model, Random.generate AddElementMsg <| generateValue model.level )
+                    else
+                        ( { model | elements = List.sortBy .value (Element resultValue NoOp :: elements) }
+                        , Cmd.none
+                        )
+            else
+                ( { model | elements = (Element value WrongMsg) :: model.elements }
+                , Cmd.none
+                )
 
         CorrectMsg ->
-            ( model, Cmd.none )
+            update (GenerateNextPuzzleMsg model.level)
+                { model
+                    | correct = model.correct + 1
+                    , position = model.position + mapLevelToInt model.level
+                }
 
         WrongMsg ->
+            ( { model | wrong = model.wrong + 1 }, Cmd.none )
+
+        NoOp ->
             ( model, Cmd.none )
 
 
 mapFloatToLevel : Float -> Level
 mapFloatToLevel value =
-    if (value == -2) then
+    if (value == 1) then
         Easy
-    else if (value == 0) then
+    else if (value == 2) then
         Medium
     else
         Hard
 
 
-mapLevelToFloat : Level -> Float
-mapLevelToFloat level =
+mapLevelToInt : Level -> Int
+mapLevelToInt level =
     case level of
         Easy ->
-            -2
+            1
 
         Medium ->
-            0
+            2
 
         Hard ->
-            2
+            3
 
 
 view : Model -> Html Msg
@@ -153,6 +198,9 @@ card model =
                     ]
                 ]
             ]
+        , Card.text [ css "text-align" "center" ]
+            [ div [] [ text <| "Correct: " ++ toString model.correct ++ " Wrong: " ++ toString model.wrong ]
+            ]
         , Card.text [] [ body model ]
         , Card.actions
             [ Card.border
@@ -162,10 +210,10 @@ card model =
             , div []
                 [ Slider.view
                     [ Slider.onChange (SliderMsg 0)
-                    , Slider.value <| mapLevelToFloat model.level
-                    , Slider.max 2
-                    , Slider.min -2
-                    , Slider.step 2
+                    , Slider.value <| toFloat <| mapLevelToInt model.level
+                    , Slider.max 3
+                    , Slider.min 1
+                    , Slider.step 1
                     ]
                 ]
             ]
